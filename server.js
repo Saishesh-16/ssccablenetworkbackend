@@ -20,7 +20,7 @@ const app = express();
 connectDB();
 
 // Middleware
-// CORS configuration - allow both localhost and 127.0.0.1
+// CORS configuration - allow both localhost and production domains
 app.use(cors({
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
@@ -33,11 +33,16 @@ app.use(cors({
       process.env.FRONTEND_URL
     ].filter(Boolean); // Remove undefined values
     
+    // Check if origin is in allowed list
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
       // In development, allow any localhost origin
       if (process.env.NODE_ENV === 'development' && (origin.includes('localhost') || origin.includes('127.0.0.1'))) {
+        callback(null, true);
+      } 
+      // In production, allow Render domains (*.onrender.com)
+      else if (process.env.NODE_ENV === 'production' && origin.includes('.onrender.com')) {
         callback(null, true);
       } else {
         callback(new Error('Not allowed by CORS'));
