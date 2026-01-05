@@ -60,43 +60,99 @@ app.use((req, res, next) => {
   next();
 });
 
+// Root route - API info
+app.get('/', (req, res) => {
+  res.json({
+    success: true,
+    message: 'SSC Bethigal Cable Network API',
+    version: '1.0.0',
+    endpoints: {
+      health: '/api/health',
+      customers: '/api/customers',
+      dashboard: '/api/dashboard',
+      payments: '/api/payments'
+    },
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Health check endpoint (before other routes for quick access)
+app.get('/api/health', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Server is running',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
 // API Routes
 app.use('/api/customers', customerRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/payments', paymentRoutes);
 
-// Health check endpoint
-app.get('/api/health', (req, res) => {
-  res.json({
-    success: true,
-    message: 'Server is running',
-    timestamp: new Date().toISOString()
-  });
-});
+// Log registered routes on startup
+console.log('📋 Registered API Routes:');
+console.log('   GET  /api/health');
+console.log('   GET  /api/customers');
+console.log('   GET  /api/customers/search');
+console.log('   GET  /api/customers/:id');
+console.log('   POST /api/customers');
+console.log('   PUT  /api/customers/:id/payment');
+console.log('   PUT  /api/customers/:id');
+console.log('   DELETE /api/customers/:id');
+console.log('   GET  /api/dashboard');
+console.log('   GET  /api/payments');
+console.log('   GET  /api/payments/customer/:customerId');
 
-// 404 handler
+// 404 handler - must be after all routes
 app.use((req, res) => {
+  console.log(`404 - Route not found: ${req.method} ${req.path}`);
   res.status(404).json({
     success: false,
-    message: 'Route not found'
+    message: 'Route not found',
+    path: req.path,
+    method: req.method,
+    availableEndpoints: [
+      'GET /api/health',
+      'GET /api/customers',
+      'GET /api/customers/search',
+      'GET /api/dashboard',
+      'GET /api/payments'
+    ]
   });
 });
 
-// Error handling middleware
+// Error handling middleware - must be last
 app.use((err, req, res, next) => {
   console.error('Error:', err);
-  res.status(500).json({
+  
+  // Handle CORS errors
+  if (err.message === 'Not allowed by CORS') {
+    return res.status(403).json({
+      success: false,
+      message: 'CORS error: Origin not allowed',
+      origin: req.headers.origin,
+      error: process.env.NODE_ENV === 'development' ? err.message : 'Access denied'
+    });
+  }
+  
+  // Handle other errors
+  res.status(err.status || 500).json({
     success: false,
-    message: 'Internal server error',
-    error: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
+    message: err.message || 'Internal server error',
+    error: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong',
+    path: req.path,
+    method: req.method
   });
 });
 
 // Start server
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🌐 API available at http://localhost:${PORT}/api`);
+  console.log(`🌐 API available at http://0.0.0.0:${PORT}/api`);
+  console.log(`✅ All routes registered successfully`);
 });
 
