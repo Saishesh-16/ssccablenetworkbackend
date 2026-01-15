@@ -210,17 +210,21 @@ exports.updatePayment = async (req, res) => {
     
     // Create payment history record
     if (paymentDate || status) {
-      const paymentPlan = req.body.paymentPlan || customer.paymentPlan;
+      const effectivePlan = req.body.paymentPlan || customer.paymentPlan;
       const paymentStatus = status || (paymentDate ? 'Paid' : customer.status);
-      const paymentAmount = paymentPlan === 'Monthly' ? 250 : 
-                           paymentPlan === 'Half-Yearly' ? 1500 : 
-                           paymentPlan === 'Yearly' ? 3000 : 250;
+
+      // Updated amounts to match frontend: 300 / 1700 / 3400
+      const paymentAmount =
+        effectivePlan === 'Monthly' ? 300 :
+        effectivePlan === 'Half-Yearly' ? 1700 :
+        effectivePlan === 'Yearly' ? 3400 :
+        300;
       
       await Payment.create({
         customerId: customer._id,
         amount: paymentAmount,
         paymentDate: paymentDate ? new Date(paymentDate) : new Date(),
-        paymentPlan: paymentPlan,
+        paymentPlan: effectivePlan,
         status: paymentStatus,
         notes: req.body.paymentNotes || ''
       });
@@ -242,6 +246,7 @@ exports.updatePayment = async (req, res) => {
 
 /**
  * Update customer details
+ * (now also supports clearing / updating lastPaidDate from frontend)
  */
 exports.updateCustomer = async (req, res) => {
   try {
@@ -260,6 +265,26 @@ exports.updateCustomer = async (req, res) => {
     if (name) customer.name = name.trim();
     if (paymentPlan) customer.paymentPlan = paymentPlan;
     if (req.body.notes !== undefined) customer.notes = req.body.notes.trim();
+
+    // Handle lastPaidDate updates / clearing
+    if (Object.prototype.hasOwnProperty.call(req.body, 'lastPaidDate')) {
+      const lp = req.body.lastPaidDate;
+
+      // Clear lastPaidDate when null/empty string is sent from frontend
+      if (lp === null || lp === '') {
+        customer.lastPaidDate = null;
+        customer.nextDueDate = null;
+        customer.status = 'Due but Active';
+        customer.daysOverdue = 0;
+      } else {
+        // Optional: support setting lastPaidDate manually
+        const d = new Date(lp);
+        if (!isNaN(d)) {
+          customer.lastPaidDate = d;
+          customer.nextDueDate = customer.calculateNextDueDate(d);
+        }
+      }
+    }
     
     await customer.save();
     
@@ -349,4 +374,3 @@ exports.resetAllPaymentData = async (req, res) => {
     });
   }
 };
-
